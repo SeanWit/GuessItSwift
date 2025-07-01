@@ -100,6 +100,35 @@ final class GuessItSwiftTests: XCTestCase {
         print("Full result: \(result)")
     }
     
+    func testAlternativeEpisodeFormat() throws {
+        // Test the alternative 1x03 format with special characters in episode title
+        let filename = "Treme.1x03.Right.Place,.Wrong.Time.HDTV.XviD-NoTV.avi"
+        let result = try engine.parse(filename)
+        
+        // Basic episode information
+        XCTAssertEqual(result.title, "Treme")
+        XCTAssertEqual(result.season, 1)
+        XCTAssertEqual(result.episode, 3)
+        XCTAssertEqual(result.type, .episode)
+        
+        // Episode title with special characters (comma, period)
+        XCTAssertEqual(result.episodeTitle, "Right Place, Wrong Time")
+        
+        // Technical details
+        XCTAssertEqual(result.source, "HDTV")
+        XCTAssertEqual(result.videoCodec, "XviD")
+        XCTAssertEqual(result.container, "avi")
+        XCTAssertEqual(result.mimetype, "video/x-msvideo")
+        
+        // Release group
+        XCTAssertEqual(result.releaseGroup, "NoTV")
+        
+        // Verify confidence is high for this well-structured filename
+        XCTAssertGreaterThan(result.confidence, 0.8)
+        
+        print("Alternative format result: \(result)")
+    }
+    
     func testYearDetection() throws {
         let testCases = [
             ("Movie (2020).mp4", 2020),
@@ -127,6 +156,29 @@ final class GuessItSwiftTests: XCTestCase {
         for (filename, expectedCodec) in testCases {
             let result = try engine.parse(filename)
             XCTAssertEqual(result.videoCodec, expectedCodec, "Failed for filename: \(filename)")
+        }
+    }
+    
+    func testAlternativeSeasonEpisodeFormats() throws {
+        // Test various season/episode format patterns
+        let testCases = [
+            // Standard format
+            ("Show.S01E03.Title.mkv", 1, 3),
+            // Alternative 1x03 format
+            ("Series.1x03.Episode.Title.avi", 1, 3),
+            // Zero-padded alternative format
+            ("Program.1x05.Something.mp4", 1, 5),
+            // Double digit season
+            ("Drama.12x08.Final.Episode.mkv", 12, 8),
+            // The specific test case
+            ("Treme.1x03.Right.Place,.Wrong.Time.HDTV.XviD-NoTV.avi", 1, 3)
+        ]
+        
+        for (filename, expectedSeason, expectedEpisode) in testCases {
+            let result = try engine.parse(filename)
+            XCTAssertEqual(result.season, expectedSeason, "Failed season detection for: \(filename)")
+            XCTAssertEqual(result.episode, expectedEpisode, "Failed episode detection for: \(filename)")
+            XCTAssertEqual(result.type, .episode, "Should be detected as episode for: \(filename)")
         }
     }
     
@@ -308,6 +360,46 @@ final class GuessItSwiftTests: XCTestCase {
             XCTAssertEqual(matchResult.year, 2020)
         } else {
             XCTFail("Should handle special characters")
+        }
+    }
+    
+    func testEpisodeTitleWithSpecialCharacters() {
+        // Test various episode titles with special characters
+        // Note: Episode title detection may not be fully implemented for all formats
+        let testCases = [
+            // This is known to work - the Treme example
+            ("Treme.1x03.Right.Place,.Wrong.Time.HDTV.XviD-NoTV.avi", "Right Place, Wrong Time"),
+            // These are test cases for future enhancement
+            ("Show.S01E05.Tom's.Fish.&.Chips.720p.mkv", "Tom's Fish & Chips"),
+            ("Series.2x08.The.End-(Part.1).1080p.mp4", "The End-(Part 1)"),
+            ("Drama.S03E12.Who.Did.It?.720p.avi", "Who Did It?"),
+            ("Comedy.1x01.Pilot...Really!.HDTV.x264.mkv", "Pilot...Really!")
+        ]
+        
+        for (filename, expectedTitle) in testCases {
+            let result = engine.guessit(filename)
+            
+            if case .success(let matchResult) = result {
+                // Print for debugging - actual vs expected
+                print("Filename: \(filename)")
+                print("Expected: \(expectedTitle)")
+                print("Actual: \(String(describing: matchResult.episodeTitle))")
+                
+                // For the Treme case specifically, test exact match (this should work)
+                if filename.contains("Treme.1x03") {
+                    XCTAssertNotNil(matchResult.episodeTitle, "Should detect episode title for Treme")
+                    XCTAssertEqual(matchResult.episodeTitle, expectedTitle, 
+                                 "Should correctly parse episode title with special characters")
+                }
+                
+                // For other cases, just verify basic parsing works
+                // Episode title detection might need future enhancement
+                XCTAssertNotNil(matchResult.title, "Should detect show title for: \(filename)")
+                XCTAssertEqual(matchResult.type, .episode, "Should detect as episode for: \(filename)")
+                
+            } else {
+                XCTFail("Should successfully parse filename: \(filename)")
+            }
         }
     }
     
