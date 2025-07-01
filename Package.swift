@@ -30,10 +30,7 @@ let package = Package(
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         .target(
             name: "GuessItSwift",
-            dependencies: [],
-            resources: [
-                .process("Resources")
-            ]
+            dependencies: []
         ),
         .executableTarget(
             name: "GuessItSwiftExample",

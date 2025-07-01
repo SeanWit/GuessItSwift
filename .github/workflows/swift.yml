@@ -75,9 +75,9 @@ jobs:
     strategy:
       matrix:
         destination: 
-          - 'platform=iOS Simulator,name=iPhone 15,OS=17.2'
-          - 'platform=iOS Simulator,name=iPhone 15 Pro,OS=17.2'
-          - 'platform=iOS Simulator,name=iPad Air (5th generation),OS=17.2'
+          - 'platform=iOS Simulator,name=iPhone 16,OS=18.5'
+          - 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5'
+          - 'platform=iOS Simulator,name=iPad Air 11-inch (M3),OS=18.5'
     
     steps:
     - name: Checkout code
@@ -210,7 +210,7 @@ jobs:
       run: |
         xcodebuild clean build \
           -scheme GuessItSwiftiOSExample \
-          -destination 'platform=iOS Simulator,name=iPhone 15,OS=17.2' \
+          -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' \
           -derivedDataPath .build/ios-example \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGN_IDENTITY="" \
@@ -256,4 +256,4 @@ jobs:
         echo "| Code Quality | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Performance Tests | ${{ needs.performance-tests.result }} |" >> $GITHUB_STEP_SUMMARY
         echo "| Examples Build | ${{ needs.examples-build.result }} |" >> $GITHUB_STEP_SUMMARY
-        echo "| Security Check | ${{ needs.security-check.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Security Check | ${{ needs.security-check.result }} |" >> $GITHUB_STEP_SUMMARY 
