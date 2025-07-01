@@ -1,0 +1,89 @@
+# Codecov Configuration for GuessItSwift
+# https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  # Coverage precision (number of decimal places)
+  precision: 2
+  
+  # Round coverage to the nearest integer
+  round: down
+  
+  # Coverage range (red to green)
+  range: "70...95"
+  
+  status:
+    # Project coverage status
+    project:
+      default:
+        target: 80%
+        threshold: 5%
+        base: auto
+        flags:
+          - swift-package-manager
+        paths:
+          - "Sources/"
+    
+    # Patch coverage status (for new code in PRs)
+    patch:
+      default:
+        target: 75%
+        threshold: 10%
+        base: auto
+        flags:
+          - swift-package-manager
+        paths:
+          - "Sources/"
+
+# Comment configuration
+comment:
+  layout: "reach,diff,flags,tree,reach"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+  branches:
+    - main
+    - develop
+
+# Ignore paths
+ignore:
+  - "Tests/"
+  - "Sources/GuessItSwiftExample/"
+  - "Sources/GuessItSwiftiOSExample/"
+  - "*.md"
+  - "*.yml"
+  - "*.yaml"
+  - ".github/"
+  - "docs/"
+  - ".build/"
+  - ".swiftpm/"
+  - "DerivedData/"
+
+# Flags for different test types
+flags:
+  swift-package-manager:
+    paths:
+      - Sources/GuessItSwift/
+    carryforward: false
+    
+  ios-tests:
+    paths:
+      - Sources/GuessItSwift/
+    carryforward: false
+    
+  macos-tests:
+    paths:
+      - Sources/GuessItSwift/
+    carryforward: false
+
+# Pull request settings
+github_checks:
+  annotations: true
+
+# Notification settings
+slack:
+  default:
+    only_pulls: false
+    message: "Coverage for {{owner}}/{{repo}} changed by {{changed}} ({{coverage}}%)"
+    flags: null
+    paths: null 

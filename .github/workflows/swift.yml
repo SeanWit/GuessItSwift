@@ -1,22 +1,259 @@
-# This workflow will build a Swift project
+# This workflow will build a Swift project with comprehensive testing and checks
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-swift
 
-name: Swift
+name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
+  workflow_dispatch: # Allow manual trigger
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-
-    runs-on: macos-latest
-
+  # Swift Package Manager Build and Test
+  swift-package-tests:
+    name: Swift Package Tests
+    strategy:
+      matrix:
+        os: [macos-13, macos-14]
+        swift-version: ['5.9', '5.10']
+    runs-on: ${{ matrix.os }}
+    
     steps:
-    - uses: actions/checkout@v4
-    - name: Build
-      run: swift build -v
-    - name: Run tests
-      run: swift test -v
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Swift
+      uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: ${{ matrix.swift-version }}
+        
+    - name: Cache Swift Package Manager
+      uses: actions/cache@v4
+      with:
+        path: |
+          .build
+          ~/.cache/org.swift.swiftpm/
+        key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+        restore-keys: |
+          ${{ runner.os }}-spm-
+          
+    - name: Swift Version
+      run: swift --version
+      
+    - name: Build Package
+      run: swift build -v --build-tests
+      
+    - name: Run Tests with Coverage
+      run: swift test -v --enable-code-coverage
+      
+    - name: Generate Code Coverage Report
+      if: matrix.os == 'macos-14' && matrix.swift-version == '5.10'
+      run: |
+        xcrun llvm-cov export -format="lcov" \
+          .build/debug/GuessItSwiftPackageTests.xctest/Contents/MacOS/GuessItSwiftPackageTests \
+          -instr-profile .build/debug/codecov/default.profdata > coverage.lcov
+          
+    - name: Upload Coverage to Codecov
+      if: matrix.os == 'macos-14' && matrix.swift-version == '5.10'
+      uses: codecov/codecov-action@v4
+      with:
+        file: coverage.lcov
+        flags: swift-package-manager
+        name: SPM Tests
+        fail_ci_if_error: false
+
+  # iOS Simulator Tests
+  ios-tests:
+    name: iOS Tests
+    runs-on: macos-14
+    strategy:
+      matrix:
+        destination: 
+          - 'platform=iOS Simulator,name=iPhone 15,OS=17.2'
+          - 'platform=iOS Simulator,name=iPhone 15 Pro,OS=17.2'
+          - 'platform=iOS Simulator,name=iPad Air (5th generation),OS=17.2'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: List available simulators
+      run: xcrun simctl list devices available
+      
+    - name: Build for iOS Simulator
+      run: |
+        xcodebuild clean build-for-testing \
+          -scheme GuessItSwift \
+          -destination '${{ matrix.destination }}' \
+          -derivedDataPath .build/ios \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGN_IDENTITY="" \
+          PROVISIONING_PROFILE=""
+          
+    - name: Test on iOS Simulator
+      run: |
+        xcodebuild test-without-building \
+          -scheme GuessItSwift \
+          -destination '${{ matrix.destination }}' \
+          -derivedDataPath .build/ios \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGN_IDENTITY="" \
+          PROVISIONING_PROFILE=""
+
+  # macOS Tests
+  macos-tests:
+    name: macOS Tests
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Build for macOS
+      run: |
+        xcodebuild clean build-for-testing \
+          -scheme GuessItSwift \
+          -destination 'platform=macOS' \
+          -derivedDataPath .build/macos
+          
+    - name: Test on macOS
+      run: |
+        xcodebuild test-without-building \
+          -scheme GuessItSwift \
+          -destination 'platform=macOS' \
+          -derivedDataPath .build/macos
+
+  # Static Analysis and Code Quality
+  code-quality:
+    name: Code Quality Checks
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Swift
+      uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: '5.10'
+        
+    - name: Install SwiftLint
+      run: brew install swiftlint
+      
+    - name: Run SwiftLint
+      run: swiftlint lint --reporter github-actions-logging
+      continue-on-error: true
+      
+    - name: Install SwiftFormat
+      run: brew install swiftformat
+      
+    - name: Check Swift Formatting
+      run: swiftformat --lint .
+      continue-on-error: true
+      
+    - name: Build Documentation
+      run: |
+        swift package generate-documentation --target GuessItSwift \
+          --output-path ./docs \
+          --emit-digest
+      continue-on-error: true
+
+  # Performance Tests
+  performance-tests:
+    name: Performance Tests
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Swift
+      uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: '5.10'
+        
+    - name: Build Release
+      run: swift build -c release
+      
+    - name: Run Performance Tests
+      run: swift test -c release --filter Performance
+      continue-on-error: true
+
+  # Example Applications Build
+  examples-build:
+    name: Build Examples
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Swift
+      uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: '5.10'
+        
+    - name: Build CLI Example
+      run: swift build --product GuessItSwiftExample
+      
+    - name: Test CLI Example
+      run: |
+        .build/debug/GuessItSwiftExample "The.Dark.Knight.2008.1080p.BluRay.x264-GROUP.mkv"
+      
+    - name: Build iOS Example
+      run: |
+        xcodebuild clean build \
+          -scheme GuessItSwiftiOSExample \
+          -destination 'platform=iOS Simulator,name=iPhone 15,OS=17.2' \
+          -derivedDataPath .build/ios-example \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGN_IDENTITY="" \
+          PROVISIONING_PROFILE=""
+
+  # Security and Dependency Check
+  security-check:
+    name: Security Check
+    runs-on: macos-14
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Swift
+      uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: '5.10'
+        
+    - name: Check Package Dependencies
+      run: swift package show-dependencies
+      
+    - name: Audit Dependencies
+      run: swift package audit
+      continue-on-error: true
+
+  # Summary Job
+  ci-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [swift-package-tests, ios-tests, macos-tests, code-quality, performance-tests, examples-build, security-check]
+    if: always()
+    
+    steps:
+    - name: Summary
+      run: |
+        echo "## CI Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Swift Package Tests | ${{ needs.swift-package-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| iOS Tests | ${{ needs.ios-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| macOS Tests | ${{ needs.macos-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Code Quality | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Performance Tests | ${{ needs.performance-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Examples Build | ${{ needs.examples-build.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Security Check | ${{ needs.security-check.result }} |" >> $GITHUB_STEP_SUMMARY
